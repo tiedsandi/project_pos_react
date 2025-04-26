@@ -476,7 +476,7 @@
                 "requestBody": {
                     "required": true,
                     "content": {
-                        "application/json": {
+                        "multipart/form-data": {
                             "schema": {
                                 "required": [
                                     "category_id",
@@ -495,7 +495,7 @@
                                     },
                                     "photo": {
                                         "type": "string",
-                                        "example": "photo.jpg"
+                                        "format": "binary"
                                     },
                                     "description": {
                                         "type": "string",
@@ -599,7 +599,7 @@
                 "requestBody": {
                     "required": true,
                     "content": {
-                        "application/json": {
+                        "multipart/form-data": {
                             "schema": {
                                 "properties": {
                                     "category_id": {
@@ -612,7 +612,7 @@
                                     },
                                     "photo": {
                                         "type": "string",
-                                        "example": "updated_photo.jpg"
+                                        "format": "binary"
                                     },
                                     "description": {
                                         "type": "string",

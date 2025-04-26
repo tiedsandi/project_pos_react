@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ApiResponseResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-
 
 /**
  * @OA\Schema(
@@ -52,7 +52,7 @@ class ProductController extends Controller
      */
     public function index()
     {
-        $products = Product::all();
+        $products = Product::get();
 
         return new ApiResponseResource(
             $products,
@@ -70,15 +70,18 @@ class ProductController extends Controller
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
-     *         @OA\JsonContent(
-     *             required={"category_id", "name", "price", "stock"},
-     *             @OA\Property(property="category_id", type="integer", example=1),
-     *             @OA\Property(property="name", type="string", example="iPhone 15 Pro"),
-     *             @OA\Property(property="photo", type="string", example="photo.jpg"),
-     *             @OA\Property(property="description", type="string", example="Latest Apple smartphone."),
-     *             @OA\Property(property="price", type="number", format="float", example=1999.99),
-     *             @OA\Property(property="stock", type="integer", example=100),
-     *             @OA\Property(property="is_active", type="boolean", example=true)
+     *         @OA\MediaType(
+     *             mediaType="multipart/form-data",
+     *             @OA\Schema(
+     *                 required={"category_id", "name", "price", "stock"},
+     *                 @OA\Property(property="category_id", type="integer", example=1),
+     *                 @OA\Property(property="name", type="string", example="iPhone 15 Pro"),
+     *                 @OA\Property(property="photo", type="string", format="binary"),
+     *                 @OA\Property(property="description", type="string", example="Latest Apple smartphone."),
+     *                 @OA\Property(property="price", type="number", format="float", example=1999.99),
+     *                 @OA\Property(property="stock", type="integer", example=100),
+     *                 @OA\Property(property="is_active", type="boolean", example=true)
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -92,12 +95,18 @@ class ProductController extends Controller
      *     )
      * )
      */
+
+
     public function store(Request $request)
     {
+        $request->merge([
+            'is_active' => filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN),
+        ]);
+
         $validation = Validator::make($request->all(), [
             'category_id' => 'required|exists:categories,id',
             'name' => 'required|string|max:255',
-            'photo' => 'nullable|string',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
@@ -113,7 +122,22 @@ class ProductController extends Controller
         }
 
         try {
-            $product = Product::create($request->all());
+            $imageName = null;
+            if ($request->hasFile('photo')) {
+                $image = $request->file('photo');
+                $image->storeAs('products', $image->hashName());
+                $imageName = $image->hashName();
+            }
+
+            $product = Product::create([
+                'category_id' => $request->category_id,
+                'name' => $request->name,
+                'photo' =>  $imageName,
+                'description' => $request->description,
+                'price' => $request->price,
+                'stock' => $request->stock,
+                'is_active' => $request->is_active ?? true,
+            ]);
 
             return new ApiResponseResource(
                 $product,
@@ -187,14 +211,17 @@ class ProductController extends Controller
      *     ),
      *     @OA\RequestBody(
      *         required=true,
-     *         @OA\JsonContent(
-     *             @OA\Property(property="category_id", type="integer", example=1),
-     *             @OA\Property(property="name", type="string", example="Updated Product Name"),
-     *             @OA\Property(property="photo", type="string", example="updated_photo.jpg"),
-     *             @OA\Property(property="description", type="string", example="Updated description"),
-     *             @OA\Property(property="price", type="number", format="float", example=1499.99),
-     *             @OA\Property(property="stock", type="integer", example=50),
-     *             @OA\Property(property="is_active", type="boolean", example=true)
+     *         @OA\MediaType(
+     *             mediaType="multipart/form-data",
+     *             @OA\Schema(
+     *                 @OA\Property(property="category_id", type="integer", example=1),
+     *                 @OA\Property(property="name", type="string", example="Updated Product Name"),
+     *                 @OA\Property(property="photo", type="string", format="binary"),
+     *                 @OA\Property(property="description", type="string", example="Updated description"),
+     *                 @OA\Property(property="price", type="number", format="float", example=1499.99),
+     *                 @OA\Property(property="stock", type="integer", example=50),
+     *                 @OA\Property(property="is_active", type="boolean", example=true)
+     *             )
      *         )
      *     ),
      *     @OA\Response(
@@ -208,12 +235,18 @@ class ProductController extends Controller
      *     )
      * )
      */
+
     public function update(Request $request, $id)
     {
+        $request->merge([
+            'is_active' => filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN),
+        ]);
+
+        // Validasi
         $validated = Validator::make($request->all(), [
             'category_id' => 'sometimes|exists:categories,id',
             'name' => 'sometimes|string|max:255',
-            'photo' => 'nullable|string',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'description' => 'nullable|string',
             'price' => 'sometimes|numeric|min:0',
             'stock' => 'sometimes|integer|min:0',
@@ -231,7 +264,38 @@ class ProductController extends Controller
         try {
             $product = Product::findOrFail($id);
 
-            $product->update($request->all());
+            $updateData = [];
+            if ($request->filled('category_id')) {
+                $updateData['category_id'] = $request->category_id;
+            }
+            if ($request->filled('name')) {
+                $updateData['name'] = $request->name;
+            }
+            if ($request->filled('description')) {
+                $updateData['description'] = $request->description;
+            }
+            if ($request->filled('price')) {
+                $updateData['price'] = $request->price;
+            }
+            if ($request->filled('stock')) {
+                $updateData['stock'] = $request->stock;
+            }
+            if ($request->has('is_active')) {
+                $updateData['is_active'] = $request->is_active;
+            }
+
+            if ($request->hasFile('photo')) {
+                if ($product->photo) {
+                    Storage::delete('products/' . $product->photo);
+                }
+
+                $image = $request->file('photo');
+                $image->storeAs('products', $image->hashName());
+
+                $updateData['photo'] = $image->hashName();
+            }
+
+            $product->update($updateData);
 
             return new ApiResponseResource(
                 $product,
@@ -246,6 +310,7 @@ class ProductController extends Controller
             );
         }
     }
+
 
     /**
      * @OA\Delete(
@@ -275,6 +340,7 @@ class ProductController extends Controller
     {
         try {
             $product = Product::findOrFail($id);
+            Storage::delete('products/' . basename($product->photo));
             $product->delete();
 
             return new ApiResponseResource(
