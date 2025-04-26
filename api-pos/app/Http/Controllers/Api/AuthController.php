@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\AuthResource;
+use App\Http\Resources\ApiResponseResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -54,10 +54,11 @@ class AuthController extends Controller
         ]);
 
         if ($validation->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validation->errors(),
-            ], 422);
+            return new ApiResponseResource(
+                ['errors' => $validation->errors()],
+                false,
+                'Validation failed'
+            );
         }
 
         $crendential = $request->only('email', 'password');
@@ -66,12 +67,10 @@ class AuthController extends Controller
         }
 
 
-        return new AuthResource(
+        return new ApiResponseResource(
+            ['token' => $token],
             true,
-            'Login successful',
-            [
-                'token' => $token,
-            ]
+            'Login successful'
         );
     }
 
@@ -95,7 +94,11 @@ class AuthController extends Controller
     public function logout()
     {
         auth('api')->logout();
-        return response()->json(['message' => 'Logout Success']);
+        return new ApiResponseResource(
+            null,
+            true,
+            'Logout successful'
+        );
     }
 
 
@@ -123,14 +126,17 @@ class AuthController extends Controller
             $user = auth('api')->user();
             auth('api')->user()->userRole;
 
-            return response()->json([
-                'message' => 'Fetch profile user success.',
-                'user' => $user,
-            ]);
+            return new ApiResponseResource(
+                $user,
+                true,
+                'Fetch profile user success.'
+            );
         } catch (\Throwable $th) {
-            return response()->json([
-                'error' => $th->getMessage()
-            ], 500);
+            return new ApiResponseResource(
+                null,
+                false,
+                $th->getMessage()
+            );
         }
     }
 
@@ -156,14 +162,17 @@ class AuthController extends Controller
     {
         try {
             $newToken = JWTAuth::parseToken()->refresh();
-            return response()->json([
-                'message' => 'Token refreshed successfully.',
-                'token' => $newToken,
-            ]);
+            return new ApiResponseResource(
+                ['token' => $newToken],
+                true,
+                'Token refreshed successfully.'
+            );
         } catch (\Throwable $th) {
-            return response()->json([
-                'error' => $th->getMessage()
-            ], 500);
+            return new ApiResponseResource(
+                null,
+                false,
+                $th->getMessage()
+            );
         }
     }
 }
